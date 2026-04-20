@@ -839,6 +839,7 @@ export default function( revealElement, options ) {
 				// Respect max/min scale settings
 				scale = Math.max( scale, config.minScale );
 				scale = Math.min( scale, config.maxScale );
+				scale = Math.round( scale * 100 ) / 100;
 
 				// Don't apply any scaling styles if scale is 1 or we're
 				// in the scroll view

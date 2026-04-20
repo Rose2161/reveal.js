@@ -833,7 +833,7 @@ var ee = class {
 	}
 }, k = 500, A = 4, se = 6, j = 8, ce = class {
 	constructor(e) {
-		this.Reveal = e, this.active = !1, this.activatedCallbacks = [], this.onScroll = this.onScroll.bind(this);
+		this.Reveal = e, this.active = !1, this.activeProgressBarPage = null, this.activeProgressBarTrigger = null, this.activatedCallbacks = [], this.onScroll = this.onScroll.bind(this);
 	}
 	activate() {
 		if (this.active) return;
@@ -866,7 +866,7 @@ var ee = class {
 	deactivate() {
 		if (!this.active) return;
 		let e = this.Reveal.getState();
-		this.active = !1, this.viewportElement.removeEventListener("scroll", this.onScroll), this.viewportElement.classList.remove("reveal-scroll"), this.removeProgressBar(), this.Reveal.getSlidesElement().innerHTML = this.slideHTMLBeforeActivation, this.Reveal.sync(), this.Reveal.setState(e), this.slideHTMLBeforeActivation = null;
+		this.active = !1, this.viewportElement.removeEventListener("scroll", this.onScroll), this.viewportElement.classList.remove("reveal-scroll"), this.pendingScrollRaf && (cancelAnimationFrame(this.pendingScrollRaf), this.pendingScrollRaf = 0), this.removeProgressBar(), this.Reveal.getSlidesElement().innerHTML = this.slideHTMLBeforeActivation, this.Reveal.sync(), this.Reveal.setState(e), this.slideHTMLBeforeActivation = null;
 	}
 	toggle(e) {
 		typeof e == "boolean" ? e ? this.activate() : this.deactivate() : this.isActive() ? this.deactivate() : this.activate();
@@ -887,7 +887,7 @@ var ee = class {
 		});
 	}
 	removeProgressBar() {
-		this.progressBar && (this.progressBar.remove(), this.progressBar = null);
+		this.progressBar && (this.progressBar.remove(), this.progressBar = null), this.activeProgressBarPage = null, this.activeProgressBarTrigger = null;
 	}
 	layout() {
 		this.isActive() && (this.syncPages(), this.syncScrollPosition());
@@ -958,33 +958,41 @@ var ee = class {
 		return e.scrollTriggers = [], e.indexh = parseInt(e.slideElement.getAttribute("data-index-h"), 10), e.indexv = parseInt(e.slideElement.getAttribute("data-index-v"), 10), e;
 	}
 	syncProgressBar() {
-		this.progressBarInner.querySelectorAll(".scrollbar-slide").forEach((e) => e.remove());
+		this.progressBarInner.querySelectorAll(".scrollbar-slide").forEach((e) => e.remove()), this.activeProgressBarPage = null, this.activeProgressBarTrigger = null, this.getAllPages().forEach((e) => {
+			e.progressBarSlide = null, e.scrollTriggers.forEach((e) => e.progressBarElement = null);
+		});
 		let e = this.viewportElement.scrollHeight, t = this.viewportElement.offsetHeight, n = t / e;
 		this.progressBarHeight = this.progressBarInner.offsetHeight, this.playheadHeight = Math.max(n * this.progressBarHeight, j), this.progressBarScrollableHeight = this.progressBarHeight - this.playheadHeight;
 		let r = t / e * this.progressBarHeight, i = Math.min(r / 8, A);
-		this.progressBarPlayhead.style.height = this.playheadHeight - i + "px", r > se ? this.slideTriggers.forEach((e) => {
+		this.progressBarPlayhead.style.height = this.playheadHeight - i + "px", r > se && this.slideTriggers.forEach((e) => {
 			let { page: t } = e;
-			t.progressBarSlide = document.createElement("div"), t.progressBarSlide.className = "scrollbar-slide", t.progressBarSlide.style.top = e.range[0] * this.progressBarHeight + "px", t.progressBarSlide.style.height = (e.range[1] - e.range[0]) * this.progressBarHeight - i + "px", t.progressBarSlide.classList.toggle("has-triggers", t.scrollTriggers.length > 0), this.progressBarInner.appendChild(t.progressBarSlide), t.scrollTriggerElements = t.scrollTriggers.map((n, r) => {
+			t.progressBarSlide = document.createElement("div"), t.progressBarSlide.className = "scrollbar-slide", t.progressBarSlide.style.top = e.range[0] * this.progressBarHeight + "px", t.progressBarSlide.style.height = (e.range[1] - e.range[0]) * this.progressBarHeight - i + "px", t.progressBarSlide.classList.toggle("has-triggers", t.scrollTriggers.length > 0), this.progressBarInner.appendChild(t.progressBarSlide), t.scrollTriggers.forEach((n, r) => {
 				let a = document.createElement("div");
-				return a.className = "scrollbar-trigger", a.style.top = (n.range[0] - e.range[0]) * this.progressBarHeight + "px", a.style.height = (n.range[1] - n.range[0]) * this.progressBarHeight - i + "px", t.progressBarSlide.appendChild(a), r === 0 && (a.style.display = "none"), a;
+				a.className = "scrollbar-trigger", a.style.top = (n.range[0] - e.range[0]) * this.progressBarHeight + "px", a.style.height = (n.range[1] - n.range[0]) * this.progressBarHeight - i + "px", t.progressBarSlide.appendChild(a), r === 0 && (a.style.display = "none"), n.progressBarElement = a;
 			});
-		}) : this.pages.forEach((e) => e.progressBarSlide = null);
+		});
 	}
 	syncScrollPosition() {
-		let e = this.viewportElement.offsetHeight, t = e / this.viewportElement.scrollHeight, n = this.viewportElement.scrollTop, r = this.viewportElement.scrollHeight - e, i = Math.max(Math.min(n / r, 1), 0), a = Math.max(Math.min((n + e / 2) / this.viewportElement.scrollHeight, 1), 0), o;
+		let e = this.viewportElement.offsetHeight, t = e / this.viewportElement.scrollHeight, n = this.viewportElement.scrollTop, r = this.viewportElement.scrollHeight - e, i = Math.max(Math.min(n / r, 1), 0), a = Math.max(Math.min((n + e / 2) / this.viewportElement.scrollHeight, 1), 0), o, s = null;
 		this.slideTriggers.forEach((e) => {
 			let { page: n } = e;
 			i >= e.range[0] - t * 2 && i <= e.range[1] + t * 2 && !n.loaded ? (n.loaded = !0, this.Reveal.slideContent.load(n.slideElement)) : n.loaded && (n.loaded = !1, this.Reveal.slideContent.unload(n.slideElement)), i >= e.range[0] && i <= e.range[1] ? (this.activateTrigger(e), o = e.page) : e.active && this.deactivateTrigger(e);
 		}), o && o.scrollTriggers.forEach((e) => {
-			a >= e.range[0] && a <= e.range[1] ? this.activateTrigger(e) : e.active && this.deactivateTrigger(e);
-		}), this.setProgressBarValue(n / (this.viewportElement.scrollHeight - e));
+			a >= e.range[0] && a <= e.range[1] ? (this.activateTrigger(e), s = e) : e.active && this.deactivateTrigger(e);
+		}), this.setProgressBarValue(n / (this.viewportElement.scrollHeight - e), o, s);
 	}
-	setProgressBarValue(e) {
-		this.progressBar && (this.progressBarPlayhead.style.transform = `translateY(${e * this.progressBarScrollableHeight}px)`, this.getAllPages().filter((e) => e.progressBarSlide).forEach((e) => {
-			e.progressBarSlide.classList.toggle("active", e.active === !0), e.scrollTriggers.forEach((t, n) => {
-				e.scrollTriggerElements[n].classList.toggle("active", e.active === !0 && t.active === !0);
-			});
-		}), this.showProgressBar());
+	setProgressBarValue(e, t = null, n = null) {
+		if (this.progressBar) {
+			if (this.progressBarPlayhead.style.transform = `translateY(${e * this.progressBarScrollableHeight}px)`, this.activeProgressBarPage !== t) {
+				var r, i;
+				(r = this.activeProgressBarPage) == null || (r = r.progressBarSlide) == null || r.classList.remove("active"), t == null || (i = t.progressBarSlide) == null || i.classList.add("active"), this.activeProgressBarPage = t;
+			}
+			if (this.activeProgressBarTrigger !== n) {
+				var a, o;
+				(a = this.activeProgressBarTrigger) == null || (a = a.progressBarElement) == null || a.classList.remove("active"), n == null || (o = n.progressBarElement) == null || o.classList.add("active"), this.activeProgressBarTrigger = n;
+			}
+			this.showProgressBar();
+		}
 	}
 	showProgressBar() {
 		this.progressBar.classList.add("visible"), clearTimeout(this.hideProgressBarTimeout), this.Reveal.getConfig().scrollProgress === "auto" && !this.draggingProgressBar && (this.hideProgressBarTimeout = setTimeout(() => {
@@ -1042,7 +1050,9 @@ var ee = class {
 		return this.pages.flatMap((e) => [e, ...e.autoAnimatePages || []]);
 	}
 	onScroll() {
-		this.syncScrollPosition(), this.storeScrollPosition();
+		this.pendingScrollRaf || (this.pendingScrollRaf = requestAnimationFrame(() => {
+			this.pendingScrollRaf = 0, this.syncScrollPosition(), this.storeScrollPosition();
+		}));
 	}
 	get viewportElement() {
 		return this.Reveal.getViewportElement();
@@ -1898,15 +1908,15 @@ var pe = class {
 	}
 }, I = 40, be = class {
 	constructor(e) {
-		this.Reveal = e, this.touchStartX = 0, this.touchStartY = 0, this.touchStartCount = 0, this.touchCaptured = !1, this.onPointerDown = this.onPointerDown.bind(this), this.onPointerMove = this.onPointerMove.bind(this), this.onPointerUp = this.onPointerUp.bind(this), this.onTouchStart = this.onTouchStart.bind(this), this.onTouchMove = this.onTouchMove.bind(this), this.onTouchEnd = this.onTouchEnd.bind(this);
+		this.Reveal = e, this.touchStartX = 0, this.touchStartY = 0, this.touchStartCount = 0, this.touchCaptured = !1, this.activePointers = /* @__PURE__ */ new Map(), this.onPointerDown = this.onPointerDown.bind(this), this.onPointerMove = this.onPointerMove.bind(this), this.onPointerUp = this.onPointerUp.bind(this), this.onPointerCancel = this.onPointerCancel.bind(this), this.onTouchStart = this.onTouchStart.bind(this), this.onTouchMove = this.onTouchMove.bind(this), this.onTouchEnd = this.onTouchEnd.bind(this);
 	}
 	bind() {
 		let e = this.Reveal.getRevealElement();
-		"onpointerdown" in window ? (e.addEventListener("pointerdown", this.onPointerDown, !1), e.addEventListener("pointermove", this.onPointerMove, !1), e.addEventListener("pointerup", this.onPointerUp, !1)) : window.navigator.msPointerEnabled ? (e.addEventListener("MSPointerDown", this.onPointerDown, !1), e.addEventListener("MSPointerMove", this.onPointerMove, !1), e.addEventListener("MSPointerUp", this.onPointerUp, !1)) : (e.addEventListener("touchstart", this.onTouchStart, !1), e.addEventListener("touchmove", this.onTouchMove, !1), e.addEventListener("touchend", this.onTouchEnd, !1));
+		"onpointerdown" in window ? (e.addEventListener("pointerdown", this.onPointerDown, !1), e.addEventListener("pointermove", this.onPointerMove, !1), e.addEventListener("pointerup", this.onPointerUp, !1), e.addEventListener("pointercancel", this.onPointerCancel, !1)) : (e.addEventListener("touchstart", this.onTouchStart, !1), e.addEventListener("touchmove", this.onTouchMove, !1), e.addEventListener("touchend", this.onTouchEnd, !1));
 	}
 	unbind() {
 		let e = this.Reveal.getRevealElement();
-		e.removeEventListener("pointerdown", this.onPointerDown, !1), e.removeEventListener("pointermove", this.onPointerMove, !1), e.removeEventListener("pointerup", this.onPointerUp, !1), e.removeEventListener("MSPointerDown", this.onPointerDown, !1), e.removeEventListener("MSPointerMove", this.onPointerMove, !1), e.removeEventListener("MSPointerUp", this.onPointerUp, !1), e.removeEventListener("touchstart", this.onTouchStart, !1), e.removeEventListener("touchmove", this.onTouchMove, !1), e.removeEventListener("touchend", this.onTouchEnd, !1);
+		e.removeEventListener("pointerdown", this.onPointerDown, !1), e.removeEventListener("pointermove", this.onPointerMove, !1), e.removeEventListener("pointerup", this.onPointerUp, !1), e.removeEventListener("pointercancel", this.onPointerCancel, !1), e.removeEventListener("touchstart", this.onTouchStart, !1), e.removeEventListener("touchmove", this.onTouchMove, !1), e.removeEventListener("touchend", this.onTouchEnd, !1);
 	}
 	isSwipePrevented(e) {
 		if (a(e, "video[controls], audio[controls]")) return !0;
@@ -1936,23 +1946,23 @@ var pe = class {
 	onTouchEnd(e) {
 		this.touchCaptured && !this.Reveal.slideContent.isAllowedToPlayAudio() && this.Reveal.startEmbeddedContent(this.Reveal.getCurrentSlide()), this.touchCaptured = !1;
 	}
-	onPointerDown(e) {
-		(e.pointerType === e.MSPOINTER_TYPE_TOUCH || e.pointerType === "touch") && (e.touches = [{
+	getActiveTouches() {
+		return Array.from(this.activePointers.values(), (e) => ({
 			clientX: e.clientX,
 			clientY: e.clientY
-		}], this.onTouchStart(e));
+		}));
+	}
+	onPointerDown(e) {
+		e.pointerType === "touch" && (this.activePointers.set(e.pointerId, e), e.touches = this.getActiveTouches(), this.onTouchStart(e));
 	}
 	onPointerMove(e) {
-		(e.pointerType === e.MSPOINTER_TYPE_TOUCH || e.pointerType === "touch") && (e.touches = [{
-			clientX: e.clientX,
-			clientY: e.clientY
-		}], this.onTouchMove(e));
+		e.pointerType === "touch" && (this.activePointers.set(e.pointerId, e), e.touches = this.getActiveTouches(), this.onTouchMove(e));
 	}
 	onPointerUp(e) {
-		(e.pointerType === e.MSPOINTER_TYPE_TOUCH || e.pointerType === "touch") && (e.touches = [{
-			clientX: e.clientX,
-			clientY: e.clientY
-		}], this.onTouchEnd(e));
+		e.pointerType === "touch" && (this.activePointers.delete(e.pointerId), e.touches = this.getActiveTouches(), this.onTouchEnd(e));
+	}
+	onPointerCancel(e) {
+		e.pointerType === "touch" && (this.activePointers.delete(e.pointerId), e.touches = this.getActiveTouches(), this.onTouchEnd(e));
 	}
 }, L = "focus", R = "blur", xe = class {
 	constructor(e) {
@@ -2290,11 +2300,12 @@ function z(a, s) {
 				g && !f.embedded && document.documentElement.style.setProperty("--vh", window.innerHeight * .01 + "px");
 				let n = L.isActive() ? Qe(e, t) : Qe(), r = S;
 				Xe(f.width, f.height), D.slides.style.width = n.width + "px", D.slides.style.height = n.height + "px", S = Math.min(n.presentationWidth / n.width, n.presentationHeight / n.height), S = Math.max(S, f.minScale), S = Math.min(S, f.maxScale), S === 1 || L.isActive() ? (D.slides.style.zoom = "", D.slides.style.left = "", D.slides.style.top = "", D.slides.style.bottom = "", D.slides.style.right = "", qe({ layout: "" })) : (D.slides.style.zoom = "", D.slides.style.left = "50%", D.slides.style.top = "50%", D.slides.style.bottom = "auto", D.slides.style.right = "auto", qe({ layout: "translate(-50%, -50%) scale(" + S + ")" }));
-				let i = Array.from(D.wrapper.querySelectorAll(C));
+				let i = Array.from(D.wrapper.querySelectorAll(C)).filter((e) => e.style.display !== "none"), a = Array(i.length);
 				for (let e = 0, t = i.length; e < t; e++) {
 					let t = i[e];
-					t.style.display !== "none" && (f.center || t.classList.contains("center") ? t.classList.contains("stack") ? t.style.top = 0 : t.style.top = Math.max((n.height - t.scrollHeight) / 2, 0) + "px" : t.style.top = "");
+					f.center || t.classList.contains("center") ? t.classList.contains("stack") ? a[e] = 0 : a[e] = Math.max((n.height - t.scrollHeight) / 2, 0) + "px" : a[e] = "";
 				}
+				for (let e = 0, t = i.length; e < t; e++) i[e].style.top = a[e];
 				r !== S && Y({
 					type: "resize",
 					data: {

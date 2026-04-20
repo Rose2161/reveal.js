@@ -2,6 +2,7 @@ import { isAndroid } from '../utils/device'
 import { matches } from '../utils/util'
 
 const SWIPE_THRESHOLD = 40;
+const ZOOM_GESTURE_THRESHOLD = 1.03;
 
 /**
  * Controls all touch interactions and navigations for
@@ -89,6 +90,30 @@ export default class Touch {
 	}
 
 	/**
+	 * Returns true when browser-level zoom is active enough that
+	 * we should not trigger reveal.js touch gestures.
+	 */
+	isViewportZoomed() {
+
+		if( !window.visualViewport || typeof window.visualViewport.scale !== 'number' ) {
+			return false;
+		}
+
+		const currentScale = window.visualViewport.scale;
+
+		// Fixed-width viewport configurations may start below 1.
+		// Compare against the smallest observed "resting" scale.
+		if( typeof this.visualViewportBaseScale === 'undefined' ) {
+			this.visualViewportBaseScale = currentScale;
+		} else {
+			this.visualViewportBaseScale = Math.min( this.visualViewportBaseScale, currentScale );
+		}
+
+		return ( currentScale / this.visualViewportBaseScale ) > ZOOM_GESTURE_THRESHOLD;
+
+	}
+
+	/**
 	 * Handler for the 'touchstart' event, enables support for
 	 * swipe and pinch gestures.
 	 *
@@ -98,6 +123,7 @@ export default class Touch {
 
 		this.touchCaptured = false;
 
+		if( this.isViewportZoomed() ) return true;
 		if( this.isSwipePrevented( event.target ) ) return true;
 
 		this.touchStartX = event.touches[0].clientX;
@@ -113,6 +139,7 @@ export default class Touch {
 	 */
 	onTouchMove( event ) {
 
+		if( this.isViewportZoomed() ) return true;
 		if( this.isSwipePrevented( event.target ) ) return true;
 
 		let config = this.Reveal.getConfig();
